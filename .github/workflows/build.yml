@@ -19,7 +19,6 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-          cache: gradle
 
       - name: Instalar Android SDK
         uses: android-actions/setup-android@v3
@@ -29,7 +28,13 @@ jobs:
             platforms;android-34
             build-tools;34.0.0
 
-      - name: Compilar (debug)
+      - name: Aceptar licencias del SDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+
+      - name: Compilar debug
         shell: bash
         run: |
           set -euxo pipefail
@@ -45,7 +50,7 @@ jobs:
           mkdir -p salida
           APK_PATH="$(find launcher/app/build/outputs/apk/debug -name '*.apk' -type f | head -n 1)"
           if [ -z "$APK_PATH" ]; then
-            echo "No se encontró ninguna APK en launcher/app/build/outputs/apk/debug"
+            echo "No se encontró ninguna APK"
             find launcher -path "*build/outputs*" -type f | head -50
             exit 1
           fi
