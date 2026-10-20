@@ -6,9 +6,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: ${{ github.workspace }}/android-sdk
+      ANDROID_SDK_ROOT: ${{ github.workspace }}/android-sdk
 
     steps:
-      - name: Descargar el codigo
+      - name: Descargar el código
         uses: actions/checkout@v4
 
       - name: Instalar Java 17
@@ -16,24 +19,42 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+          cache: gradle
 
       - name: Instalar Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Instalar componentes Android
         shell: bash
         run: |
           set -euxo pipefail
-          export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+
+          mkdir -p "$ANDROID_HOME"
           echo "ANDROID_HOME=$ANDROID_HOME"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+          # Instalar Android Command Line Tools
+          curl -fsSL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d "$ANDROID_HOME"
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          if [ -d "$ANDROID_HOME/cmdline-tools/latest" ]; then
+            rm -rf "$ANDROID_HOME/cmdline-tools/latest"
+          fi
+          if [ -d "$ANDROID_HOME/cmdline-tools/bin" ]; then
+            rm -rf "$ANDROID_HOME/cmdline-tools/bin"
+          fi
+
+          # Ajustar estructura esperada por sdkmanager
+          if [ -d "$ANDROID_HOME/cmdline-tools/cmdline-tools" ]; then
+            mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
+          fi
+
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "cmdline-tools;latest" "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
       - name: Compilar (debug)
         shell: bash
         run: |
           set -euxo pipefail
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
           cd launcher
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
