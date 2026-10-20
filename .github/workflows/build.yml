@@ -1,12 +1,12 @@
 name: Compilar launcher
 
-# Se ejecuta a mano: pestaña Actions > "Compilar launcher" > Run workflow
 on:
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Descargar el codigo
         uses: actions/checkout@v4
@@ -20,32 +20,38 @@ jobs:
       - name: Instalar Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Instalar plataforma 34 y build-tools 34.0.0
+      - name: Instalar componentes Android
+        shell: bash
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platforms;android-34" "build-tools;34.0.0"
+          set -euxo pipefail
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
 
-      - name: Compilar (build debug, instalable sin firmar a mano)
+      - name: Compilar (debug)
+        shell: bash
         run: |
-          if [ -f launcher/gradlew ]; then
-            cd launcher
-            chmod +x gradlew
-            ./gradlew assembleDebug --no-daemon
-          elif [ -f gradlew ]; then
-            chmod +x gradlew
-            ./gradlew assembleDebug --no-daemon
-          else
-            echo "No encontre gradlew en el repositorio."
+          set -euxo pipefail
+          cd launcher
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Preparar APK en carpeta salida
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p salida
+          APK_PATH="$(find launcher/app/build/outputs/apk/debug -name '*.apk' -type f | head -n 1)"
+          if [ -z "$APK_PATH" ]; then
+            echo "No se encontró ninguna APK en launcher/app/build/outputs/apk/debug"
+            find launcher -path "*build/outputs*" -type f | head -50
             exit 1
           fi
+          cp "$APK_PATH" salida/
+          ls -l salida
 
-      - name: Reunir el APK
-        run: |
-          mkdir -p salida
-          find . -name "*.apk" -path "*outputs*" -exec cp {} salida/ \;
-          ls -la salida
-
-      - name: Publicar el APK para descargarlo
+      - name: Publicar el APK
         uses: actions/upload-artifact@v4
         with:
           name: launcher-apk
